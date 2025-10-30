@@ -1,0 +1,10 @@
+Brand_Royal
+Brand_brio
+Brand_city
+Brand_corolla
+Brand_fortuner
+Brand_verna
+Fuel_Type_Diesel
+Present_Price_Log
+Seller_Type_Individual
+Transmission_Manual

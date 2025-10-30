@@ -1,0 +1,36 @@
+Initial Data Exploration Summary
+Shape: (301, 9)
+
+Data Types:
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 301 entries, 0 to 300
+Data columns (total 9 columns):
+ #   Column         Non-Null Count  Dtype  
+---  ------         --------------  -----  
+ 0   Car_Name       301 non-null    object 
+ 1   Year           301 non-null    int64  
+ 2   Selling_Price  301 non-null    float64
+ 3   Present_Price  301 non-null    float64
+ 4   Kms_Driven     301 non-null    int64  
+ 5   Fuel_Type      301 non-null    object 
+ 6   Seller_Type    301 non-null    object 
+ 7   Transmission   301 non-null    object 
+ 8   Owner          301 non-null    int64  
+dtypes: float64(2), int64(3), object(4)
+memory usage: 21.3+ KB
+
+Descriptive Statistics:
+              Year  Selling_Price  Present_Price     Kms_Driven       Owner
+count   301.000000     301.000000     301.000000     301.000000  301.000000
+mean   2013.627907       4.661296       7.628472   36947.205980    0.043189
+std       2.891554       5.082812       8.644115   38886.883882    0.247915
+min    2003.000000       0.100000       0.320000     500.000000    0.000000
+25%    2012.000000       0.900000       1.200000   15000.000000    0.000000
+50%    2014.000000       3.600000       6.400000   32000.000000    0.000000
+75%    2016.000000       6.000000       9.900000   48767.000000    0.000000
+max    2018.000000      35.000000      92.600000  500000.000000    3.000000
+
+Inconsistencies Check:
+Non-positive Selling_Price: 0
+Non-positive Present_Price: 0
+Negative Kms_Driven: 0

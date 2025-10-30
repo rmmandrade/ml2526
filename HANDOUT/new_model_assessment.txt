@@ -1,0 +1,34 @@
+
+--- Task 4: Model Building and Assessment (New Dataset) ---
+
+**1. Problem Type and Algorithm:**
+-   **Problem Type:** Regression (predicting a continuous variable: car price).
+-   **Algorithm:** Simple **Multiple Linear Regression** (chosen as the "simple model").
+
+**2. Assessment Strategy and Metrics:**
+-   **Strategy:** Hold-out validation using an 80/20 **Train-Test Split** (`random_state=42`).
+-   **Metrics:**
+    -   **R-squared (R2):** Measures the proportion of variance in the log-transformed price explained.
+    -   **Root Mean Squared Error (RMSE):** Measures the average magnitude of the errors. Reported on both log and original scales (Original Scale is in the currency of the dataset).
+
+**3. Model Performance:**
+
+| Metric | Training Set | Test Set |
+| :--- | :---: | :---: |
+| **R-squared (R2)** | 0.3511 | 0.3377 |
+| **RMSE (Log Scale)** | 0.4295 | 0.4307 |
+| **RMSE (Original Scale)** | N/A | 8046.60 |
+
+**Interpretation:**
+- The high R2 score on the test set (0.3377) indicates that the selected features and the Linear Regression model explain a large proportion of the variance in the log-transformed car price.
+- The RMSE on the original scale (8046.60) is the average error in the predicted price.
+- The similar performance between the training and test sets suggests the model is **not significantly overfitting**.
+
+**4. Model Coefficients (Top 5 by Absolute Magnitude):**
+| Feature                |   Coefficient |
+|:-----------------------|--------------:|
+| transmission_emi-Aut   |      0.974271 |
+| transmission_Semi-Aut  |      0.680803 |
+| transmission_emi-auto  |      0.675525 |
+| transmission_UTOMATIC  |      0.671598 |
+| transmission_Semi-Auto |      0.643624 |

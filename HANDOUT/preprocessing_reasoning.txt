@@ -1,0 +1,18 @@
+
+--- Task 2: Data Cleaning and Pre-processing Reasoning ---
+
+1. Missing Values:
+   - The initial data exploration confirmed there are no missing values in the dataset (301 non-null entries out of 301 rows). No action was required.
+
+2. Outlier Handling:
+   - **Action:** The target variable ('Selling_Price') and the highly correlated feature ('Present_Price') were highly right-skewed, indicating the presence of high-value outliers. To mitigate the influence of these outliers and make the distributions more normal, a **logarithmic transformation (np.log1p)** was applied. The new target variable is 'Selling_Price_Log'.
+
+3. Categorical Variables:
+   - **Car_Name:** The full car name is too granular. The **brand name** was extracted as a new feature ('Brand'). Brands with a count of less than 10 were grouped into an 'Other' category to reduce the dimensionality of the feature space and prevent overfitting.
+   - **One-Hot Encoding:** Categorical features ('Fuel_Type', 'Seller_Type', 'Transmission', 'Brand') were converted into numerical format using **One-Hot Encoding** with `drop_first=True` to avoid multicollinearity (the dummy variable trap).
+
+4. Feature Creation:
+   - **Car_Age:** The 'Year' column was converted into a more meaningful feature, 'Car_Age' (2025 - Year), as the age of a car is a direct factor in its depreciation. The original 'Year' column was dropped.
+
+5. Data Scaling:
+   - **Action:** Numerical features ('Kms_Driven', 'Car_Age', 'No_of_Owners', 'Present_Price_Log') were scaled using **StandardScaler**. This technique standardizes the features by removing the mean and scaling to unit variance, which is crucial for distance-based and gradient-descent-based models to converge faster and perform better. The target variable 'Selling_Price_Log' was intentionally *not* scaled, as is common practice in regression tasks.

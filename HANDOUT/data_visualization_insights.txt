@@ -1,0 +1,27 @@
+
+--- Relevant Insights from Data Visualization (Task 1) ---
+
+1. Distribution of Selling Price:
+   - The distribution is highly right-skewed, with most cars selling for less than 10 Lakhs.
+   - There are a few outliers with very high selling prices (up to 35 Lakhs), suggesting a need for potential transformation (e.g., log) or outlier handling.
+
+2. Selling Price vs. Present Price (Multivariate with Fuel Type):
+   - There is a strong positive linear relationship between 'Present_Price' and 'Selling_Price' (correlation of 0.88).
+   - Diesel cars tend to have higher 'Present_Price' and 'Selling_Price' compared to Petrol and CNG cars, especially in the higher price range.
+
+3. Selling Price vs. Car Age:
+   - There is a clear negative correlation (approx -0.24) between 'Car_Age' and 'Selling_Price', indicating that older cars sell for less.
+   - The scatter plot shows a high concentration of newer cars (low age) across all selling prices, but the highest selling prices are exclusively for newer cars.
+
+4. Categorical Features vs. Selling Price (Box Plots):
+   - Seller Type: Cars sold by 'Dealer' have a significantly higher median and range of selling prices than cars sold by an 'Individual'.
+   - Transmission Type: Automatic cars have a much higher median and maximum selling price than Manual cars.
+   - Fuel Type: Diesel cars command the highest prices, followed by Petrol, with CNG cars having the lowest prices.
+
+5. Correlation Matrix:
+   - The strongest correlation is between 'Selling_Price' and 'Present_Price' (0.88).
+   - 'Selling_Price' has a moderate negative correlation with 'Car_Age' (-0.24) and 'Kms_Driven' (-0.03), and a weak positive correlation with 'Owner' (0.05).
+   - The 'Year' column (which is inversely related to 'Car_Age') is not included in the correlation matrix, but its relationship with price is captured by 'Car_Age'.
+
+Conclusion for Task 1:
+The dataset is clean with no missing values. The target variable is highly skewed. 'Present_Price', 'Seller_Type', 'Transmission', and 'Fuel_Type' are the most influential features on 'Selling_Price'. The problem is a **Regression** task.
