@@ -1,9 +1,0 @@
-,Lower Bound,Upper Bound,Outlier Count,Outlier %
-price,-5925.0,37075.0,2695.0,3.55
-mileage,-30083.12,69933.88,3617.0,4.76
-year,2011.5,2023.5,1791.0,2.36
-tax,95.0,175.0,20306.0,26.73
-mpg,21.55,87.55,1200.0,1.58
-enginesize,-0.0,3.2,716.0,0.94
-paintquality%,-5.5,134.5,0.0,0.0
-previousowners,-2.0,6.0,734.0,0.97
