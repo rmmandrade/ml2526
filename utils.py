@@ -1,10 +1,12 @@
-# %%
 import pandas as pd
 import numpy as np
 from rapidfuzz import process, fuzz, distance
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from scipy.stats import randint,loguniform,uniform
 import random
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
+from sklearn.neural_network import MLPRegressor
 import seaborn as sns
 import scipy.stats as stats
 from scipy.stats import chi2_contingency
@@ -14,11 +16,12 @@ from scipy.stats import f_oneway
 from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import LinearRegression, LassoCV
 from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error, make_scorer, r2_score, mean_absolute_error
+from sklearn.metrics import mean_squared_error, make_scorer, r2_score, mean_absolute_error,median_absolute_error
 #from mlxtend.feature_selection import ExhaustiveFeatureSelector as EFS
 from sklearn.model_selection import train_test_split, KFold, RepeatedKFold
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.base import clone
+from sklearn.ensemble import RandomForestRegressor, HistGradientBoostingRegressor, ExtraTreesRegressor
+import re
+from sklearn.preprocessing import PowerTransformer
 
 #RANDOM_SEED = 1907
 #random.seed(RANDOM_SEED)
@@ -58,79 +61,6 @@ def fuzzy_marcas(df, threshold=50):
 
     df["Brand"] = df["Brand"].apply(lambda x: HELPER_marca_correta(x, brands_dict, threshold))
     return df
-
-"""Optained through meticulous ChatGPT prompt engineering"""
-valid_models = {
-    "Audi": [
-        "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8",
-        "Q2", "Q3", "Q5", "Q7", "Q8",
-        "TT", "T", "R8",
-        "S3", "S4", "S5", "S8",
-        "RS3", "RS4", "RS5", "RS6",
-        "SQ5", "SQ7"
-    ],
-
-    "Ford": [
-        "FOCUS", "FIESTA", "MONDEO", "KA", "KA+", "FUSION",
-        "KUGA", "ECOSPORT", "EDGE", "PUMA",
-        "CMAX", "BMAX", "SMAX", "GALAXY",
-        "GRANDCMAX", "TOURNEOCONNECT", "GRANDTOURNEOCONNECT", "TOURNEOCUSTOM",
-        "MUSTANG", "RANGER", "ESCORT", "STREETKA"
-    ],
-
-    "Mercedes": [
-        "ACLASS", "BCLASS", "CCLASS", "ECLASS", "SCLASS",
-        "GLA", "GLB", "GLC", "GLE", "GLS", "GCLASS", "GLCLASS", "MCLASS",
-        "CLA", "CLS", "SL", "SLK", "CLK",
-        "VCLASS", "XCLASS", "CLC"
-    ],
-
-    "VW": [
-        "GOLF", "POLO", "PASSAT", "JETTA", "ARTEON", "SCIROCCO", "BEETLE",
-        "UP", "GOL", "FOX",
-        "TIGUAN", "TIGUANALLSPACE", "TROC", "TCROSS", "TOUAREG",
-        "TOURAN", "SHARAN", "CADDY", "CADDYMAXI", "CADDYMAXILIFE",
-        "CARAVELLE", "CALIFORNIA", "SHUTTLE",
-        "AMAROK", "GOLFSV", "CC"
-    ],
-
-    "Opel": [
-        "CORSA", "ASTRA", "INSIGNIA", "VECTRA",
-        "MOKKA", "MOKKAX", "CROSSLAND", "CROSSLANDX",
-        "GRANDLAND", "GRANDLANDX", "ANTARA",
-        "ZAFIRA", "ZAFIRATOURER", "MERIVA", "COMBOLIFE", "VIVARO",
-        "ADAM", "AGILA", "VIVA",
-        "TIGRA", "GTC", "CASCADA", "AMPERA"
-    ],
-
-    "BMW": [
-        "1SERIES", "2SERIES", "3SERIES", "4SERIES",
-        "5SERIES", "6SERIES", "7SERIES", "8SERIES",
-        "X1", "X2", "X3", "X4", "X5", "X6", "X7",
-        "M2", "M3", "M4", "M5", "M6",
-        "Z3", "Z4",
-        "I3", "I4", "I8"
-    ],
-
-    "Toyota": [
-        "YARIS", "AYGO", "AURIS", "COROLLA", "AVENSIS", "CAMRY", "PRIUS",
-        "CHR", "RAV4", "LANDCRUISER", "URBANCRUISER",
-        "VERSO", "VERSOS", "PROACEVERSO",
-        "HILUX", "GT86", "SUPRA", "IQ"
-    ],
-
-    "Skoda": [
-        "FABIA", "OCTAVIA", "SUPERB", "RAPID", "SCALA",
-        "KODIAQ", "KAROQ", "KAMIQ", "YETI", "YETIOUTDOOR",
-        "CITIGO", "ROOMSTER"
-    ],
-
-    "Hyundai": [
-        "I10", "I20", "I30", "I40", "ACCENT", "GETZ",
-        "KONA", "TUCSON", "SANTAFE", "IX20", "IX35",
-        "I800", "IONIQ", "VELOSTER", "TERRACAN"
-    ]
-}
 
 def HELPER_normalize_models(df):
     df = df.copy()
@@ -203,18 +133,12 @@ def inferir_marca_com_modelo(df, valid_models_dict):
 
     return df
 
-def limpar_anos(df):
+def limpar_anos(df,max_year=2020):
     df = df.copy()
 
-    df["year"] = np.round(df["year"]).astype("float")
-    df.loc[(df["year"] < 1980) | (df["year"] > 2020),"year"] = np.nan
-    df["year"] = df["year"].astype("Int64")
-    return df
-
-def preco_no_fim(df):
-    df = df.copy()
-
-    df = df[[col for col in df.columns if col != "price"] + ["price"]]
+    df["year"] = max_year - df["year"]
+    df.loc[(df["year"] < 0) | (df["year"] > 50), "year"] = np.nan #os carros de 1970 nem existiam em 1970 e os dados são referentes a 2020 carros depois disso não são válidos
+    df["year"] = np.floor(df["year"]).astype("Int64")
     return df
 
 def HELPER_normalize_transmission(df):
@@ -243,6 +167,7 @@ def HELPER_transmissao_correta(transm, valid_list, threshold):
     return match_name if score >= threshold else np.nan
 
 def fuzzy_transmissao(df, threshold=60):
+    df=df.copy()
     df = HELPER_normalize_transmission(df)
     valid_list = ["MANUAL", "AUTOMATIC", "SEMI-AUTO", "OTHER", "UNKNOWN"]
 
@@ -295,16 +220,6 @@ def fuzzy_fuel(df, threshold=60):
     )
     return df
 
-def impossible_to_nan(df, col, val=0, lower_upper="lower"):
-    df=df.copy()
-
-    if lower_upper=="lower":
-        df.loc[df[col]<val, col] = np.nan
-        return df
-    else:
-        df.loc[df[col]>val, col] = np.nan
-        return df
-
 def round_owners_int(df):
     df=df.copy()
     df["previousOwners"] = pd.to_numeric(df["previousOwners"], errors="coerce")
@@ -325,9 +240,24 @@ def fill_cats_UNKNOWN(df, cats):
     
     return df
 
+def mileage_per_year(df):
+    age_divisor = np.maximum(df['year'],1)
+    df["mileage_per_year"] = df["mileage"] / age_divisor
+    return df
+
+def power_efficiency(df):
+    df["power_efficiency"] = df["engineSize"] / (df["mpg"])
+    max_finite = df.loc[np.isfinite(df["power_efficiency"]), "power_efficiency"].max()
+    df["power_efficiency"] = df["power_efficiency"].replace([np.inf], max_finite)
+    
+    return df
+
+def drop_paint(df):
+    df.drop(columns=["paintQuality%"], errors="ignore")
+    return df
+
 def clean_df(df, valid_models, cat_cols):
     df=df.copy()
-
     df=carID_como_index(df)
     df=fuzzy_marcas(df)
     df=fuzzy_modelos(df, valid_models)
@@ -335,16 +265,17 @@ def clean_df(df, valid_models, cat_cols):
     df=limpar_anos(df)
     df=fuzzy_transmissao(df)
     df=impossible_to_nan(df, "mileage")
+    df=mileage_per_year(df)
     df=fuzzy_fuel(df)
     df=impossible_to_nan(df, "tax")
     df=impossible_to_nan(df, "mpg")
-    df=impossible_to_nan(df, "engineSize", 0.49)
-    df=impossible_to_nan(df,"paintQuality%", 100, "upper")
+    df=impossible_to_nan(df, "engineSize", 1)
+    df=power_efficiency(df)
+    df=drop_paint(df)
     df=impossible_to_nan(df,"previousOwners")
     df=round_owners_int(df)
     df=remove_hasdmg(df)
     df=fill_cats_UNKNOWN(df,cat_cols)
-    
     return df
 
 def separar_y(df):
@@ -380,6 +311,7 @@ def fill_nans(X, ints, floats, fill_values=None):
         return X
 
 def plot_nums(X, num_cols):
+    outlier_counts=[]
     for col in num_cols:
         fig, axes = plt.subplots(1, 2, figsize=(10, 4))
         fig.suptitle(col, fontsize=14, fontweight='bold')
@@ -391,9 +323,29 @@ def plot_nums(X, num_cols):
         # Histogram
         sns.histplot(X[col], kde=True, ax=axes[1], color='salmon')
         axes[1].set_title("Histogram")
-
-        plt.tight_layout()
-        plt.show()
+    plt.tight_layout()
+    plt.show()
+    for item in num_cols:
+    #   find and count the outliers of metric features
+        q1 = X[item].quantile(0.25)
+        q3 = X[item].quantile(0.75)
+        iqr = q3 - q1
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr
+        lower_outliers = (X[item] < lower).sum()
+        upper_outliers = (X[item] > upper).sum()
+        lower_pct = (lower_outliers / len(X)) * 100
+        upper_pct = (upper_outliers / len(X)) * 100
+        #create a dictionary with the feature,#outlier and percentage of outliers
+        outlier_counts.append({
+        "Feature": item,
+        "Lower Outlier Count": lower_outliers,
+        "Upper Outlier Count": upper_outliers,
+        "Lower Outlier %": lower_pct,
+        "Upper Outlier %": upper_pct
+    })
+    df_outlier = pd.DataFrame(outlier_counts) 
+    return df_outlier
 
 def outliers_skews_train(X):
     X = X.copy()
@@ -401,12 +353,12 @@ def outliers_skews_train(X):
 
     if "mileage" in X.columns:
         X["mileage"] = np.log1p(X["mileage"])
-        outlier_info["mileage"] = {"log_transform": True}
+        outlier_info["mileage"] = {"log1p_transform": True}
 
     if "tax" in X.columns:
-        upper = X["tax"].quantile(0.975)
-        X["tax"] = X["tax"].clip(upper=upper)
-        outlier_info["tax"] = {"upper": upper}
+        pt = PowerTransformer(method="yeo-johnson")
+        X["tax"] = pt.fit_transform(X[["tax"]]).flatten()
+        outlier_info["tax"] = pt
 
     if "mpg" in X.columns:
         upper = X["mpg"].quantile(0.975)
@@ -418,18 +370,28 @@ def outliers_skews_train(X):
         upper = X["engineSize"].quantile(0.99)
         X["engineSize"] = X["engineSize"].clip(lower=lower, upper=upper)
         outlier_info["engineSize"] = {"lower": lower, "upper": upper}
+       
+    if "milleage_per_year" in X.columns:
+        X["milleage_per_year"] = np.log1p(X["milleage_per_year"])
+        outlier_info["milleage_per_year"] = {"log1p_transform": True}
 
+    if "power_efficiency" in X.columns:
+        upper = X["power_efficiency"].quantile(0.99)
+        X["power_efficiency"] = X["power_efficiency"].clip(upper=upper)
+        outlier_info["power_efficiency"] = {"upper": upper}
     return X, outlier_info
 
 def outliers_skews_test(X, outlier_info):
     X = X.copy()
 
+
     if "mileage" in outlier_info and "mileage" in X.columns:
-        if outlier_info["mileage"].get("log_transform", False):
+        if outlier_info["mileage"].get("log1p_transform", True):
             X["mileage"] = np.log1p(X["mileage"])
 
     if "tax" in outlier_info and "tax" in X.columns:
-        X["tax"] = X["tax"].clip(upper=outlier_info["tax"]["upper"])
+        pt = outlier_info["tax"]
+        X["tax"] = pt.transform(X[["tax"]]).flatten()
 
     if "mpg" in outlier_info and "mpg" in X.columns:
         X["mpg"] = X["mpg"].clip(upper=outlier_info["mpg"]["upper"])
@@ -437,8 +399,14 @@ def outliers_skews_test(X, outlier_info):
     if "engineSize" in outlier_info and "engineSize" in X.columns:
         X["engineSize"] = X["engineSize"].clip(
             lower=outlier_info["engineSize"]["lower"],
-            upper=outlier_info["engineSize"]["upper"]
-        )
+            upper=outlier_info["engineSize"]["upper"])
+
+    if "milleage_per_year" in outlier_info and "milleage_per_year" in X.columns:
+        if outlier_info["milleage_per_year"].get("log1p_transform", True):
+            X["milleage_per_year"] = np.log1p(X["milleage_per_year"])
+            
+    if "power_efficiency" in outlier_info and "power_efficiency" in X.columns:
+        X["power_efficiency"] = X["power_efficiency"].clip(upper=outlier_info["power_efficiency"]["upper"])
 
     return X
 
@@ -520,7 +488,9 @@ def frequency_encode_test(df, cat_cols, freq_values):
         df_encoded[col] = df[col].map(freq_map).fillna(mean_freq)
     return df_encoded
 
-def run_model(X, y, int_cols, float_cols, model_class, model_params=None, scaler=None, encoder=None, cat_cols=None, encoding_type="ohe"):
+def run_model(X, y, int_cols, float_cols, model_class, model_params=None,
+              scaler=None, encoder=None, cat_cols=None, encoding_type="ohe"):
+
     X_processed = X.copy()
 
     if model_params is None:
@@ -531,6 +501,7 @@ def run_model(X, y, int_cols, float_cols, model_class, model_params=None, scaler
 
     freq_values = None
     train_feature_cols = None
+    freq_encoded_cols = []  # <-- track freq-encoded column names
 
     if cat_cols is not None and len(cat_cols) > 0:
         if encoding_type == "ohe" and encoder is not None:
@@ -538,19 +509,25 @@ def run_model(X, y, int_cols, float_cols, model_class, model_params=None, scaler
             encoded_array = encoder.transform(X_processed[cat_cols])
             encoded_cols = encoder.get_feature_names_out(cat_cols)
 
-            X_encoded = pd.concat([
+            X_processed = pd.concat([
                 X_processed.drop(columns=cat_cols).reset_index(drop=True),
                 pd.DataFrame(encoded_array, columns=encoded_cols).reset_index(drop=True)
             ], axis=1)
-            X_processed = X_encoded
 
         elif encoding_type == "freq":
             X_processed, freq_values = frequency_encode_train(X_processed, cat_cols)
+            freq_encoded_cols = list(cat_cols)  # assuming freq encoding overwrites these cols
 
     train_feature_cols = X_processed.columns.tolist()
 
     if scaler is not None:
-        numeric_cols = [col for col in X_processed.columns if col in (int_cols + float_cols)]
+        # base numeric cols
+        numeric_cols = [c for c in X_processed.columns if c in (int_cols + float_cols)]
+
+        # if freq-encoding, also scale those (they're now numeric)
+        if encoding_type == "freq":
+            numeric_cols = list(dict.fromkeys(numeric_cols + freq_encoded_cols))  # de-dupe, keep order
+
         X_processed[numeric_cols] = scaler.fit_transform(X_processed[numeric_cols])
 
     model = model_class(**model_params)
@@ -582,12 +559,17 @@ def evaluate_model(X, y, model, int_cols, float_cols, fill_values,
             # Align to training columns
             X_encoded = X_encoded.reindex(columns=train_feature_cols, fill_value=0)
             X_processed = X_encoded
-            
+
         elif encoding_type == "freq":
             X_processed = frequency_encode_test(X_processed, cat_cols, freq_values)
 
     if scaler is not None:
         numeric_cols = [col for col in X_processed.columns if col in (int_cols + float_cols)]
+
+        # also scale freq-encoded categorical cols (now numeric)
+        if encoding_type == "freq" and cat_cols is not None:
+            numeric_cols = list(dict.fromkeys(numeric_cols + list(cat_cols)))  # de-dupe
+
         X_processed[numeric_cols] = scaler.transform(X_processed[numeric_cols])
 
     preds = model.predict(X_processed)
@@ -595,6 +577,7 @@ def evaluate_model(X, y, model, int_cols, float_cols, fill_values,
         return preds
     else:
         return model.score(X_processed, y)
+
 
 def avg_score(method, X, y, int_cols, float_cols, model_class, model_params=None,
               scaler=None, encoder=None, cat_cols=None, encoding_type="ohe"):
@@ -613,16 +596,17 @@ def avg_score(method, X, y, int_cols, float_cols, model_class, model_params=None
             X_train, y_train,int_cols, float_cols, model_class=model_class, model_params=model_params,
             scaler=scaler, encoder=encoder,cat_cols=cat_cols, encoding_type=encoding_type)
 
+    
         y_train_pred = evaluate_model(
             X_train, y_train, trained_model, int_cols, float_cols, fill_values,
-            fitted_scaler, fitted_encoder, cat_cols, train_feature_cols,
-            freq_values, outlier_info, encoding_type, return_predictions=True
+            scaler=fitted_scaler, encoder=fitted_encoder, cat_cols=cat_cols, train_feature_cols=train_feature_cols,
+            freq_values=freq_values, outlier_info=outlier_info, encoding_type=encoding_type, return_predictions=True
         )
 
         y_val_pred = evaluate_model(
             X_val, y_val, trained_model, int_cols, float_cols, fill_values,
-            fitted_scaler, fitted_encoder, cat_cols, train_feature_cols,
-            freq_values, outlier_info, encoding_type, return_predictions=True
+            scaler=fitted_scaler, encoder=fitted_encoder, cat_cols=cat_cols, train_feature_cols=train_feature_cols,
+            freq_values=freq_values, outlier_info=outlier_info, encoding_type=encoding_type, return_predictions=True
         )
 
         mae_train.append(mean_absolute_error(y_train, y_train_pred))
@@ -668,28 +652,31 @@ def predict_test(X_test, model, int_cols, float_cols, fill_values,
 
     # Encode categorical features
     if cat_cols is not None and len(cat_cols) > 0:
-        if encoding_type=="ohe" and encoder is not None:
+        if encoding_type == "ohe" and encoder is not None:
             encoded_array = encoder.transform(X_processed[cat_cols])
             encoded_cols = encoder.get_feature_names_out(cat_cols)
 
-            X_encoded = pd.concat([
+            X_processed = pd.concat([
                 X_processed.drop(columns=cat_cols).reset_index(drop=True),
                 pd.DataFrame(encoded_array, columns=encoded_cols).reset_index(drop=True)
             ], axis=1)
 
             # Align to full training feature list
-            X_encoded = X_encoded.reindex(columns=train_feature_cols, fill_value=0)
-            X_processed = X_encoded
+            X_processed = X_processed.reindex(columns=train_feature_cols, fill_value=0)
 
         elif encoding_type == "freq":
             X_processed = frequency_encode_test(X_processed, cat_cols, freq_values)
 
-
     # Scale features
     if scaler is not None:
         numeric_cols = [col for col in X_processed.columns if col in (int_cols + float_cols)]
+
+        # also scale freq-encoded categorical cols (now numeric)
+        if encoding_type == "freq" and cat_cols is not None:
+            numeric_cols = list(dict.fromkeys(numeric_cols + list(cat_cols)))  # de-dupe
+
         X_processed[numeric_cols] = scaler.transform(X_processed[numeric_cols])
-    
+
     return model.predict(X_processed)
 
 def random_search_cv(
@@ -797,7 +784,7 @@ def random_search_cv(
     #best parameter combo
     best_result = min(cv_search_results, key=lambda x: x["mean_mae_val"])
     best_params = {k: v for k, v in best_result.items()
-                    if k in param_dist.keys()}      # sem base_params
+                    if k not in ["mean_mae", "std_mae", "mean_r2", "std_r2"]}      # sem base_params
 
     print("\nBest Parameters (based on lowest validation MAE):")
     for k, v in best_params.items():

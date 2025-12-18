@@ -1,9 +1,10 @@
-"""Optained through meticulous ChatGPT prompt engineering"""
+# Obtained through meticulous ChatGPT prompt engineering
+
 valid_models = {
     "Audi": [
         "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8",
         "Q2", "Q3", "Q5", "Q7", "Q8",
-        "TT", "T", "R8",
+        "TT", "R8",
         "S3", "S4", "S5", "S8",
         "RS3", "RS4", "RS5", "RS6",
         "SQ5", "SQ7"
@@ -30,7 +31,7 @@ valid_models = {
         "TIGUAN", "TIGUANALLSPACE", "TROC", "TCROSS", "TOUAREG",
         "TOURAN", "SHARAN", "CADDY", "CADDYMAXI", "CADDYMAXILIFE",
         "CARAVELLE", "CALIFORNIA", "SHUTTLE",
-        "AMAROK", "GOLFSV", "CC"
+        "AMAROK", "GOLFSV"
     ],
 
     "Opel": [
