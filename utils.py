@@ -269,7 +269,7 @@ def clean_df(df, valid_models, cat_cols):
     df=fuzzy_fuel(df)
     df=impossible_to_nan(df, "tax")
     df=impossible_to_nan(df, "mpg")
-    df=impossible_to_nan(df, "engineSize", 1)
+    df=impossible_to_nan(df, "engineSize", 0.6)
     df=power_efficiency(df)
     df=drop_paint(df)
     df=impossible_to_nan(df,"previousOwners")
