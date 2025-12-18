@@ -111,26 +111,26 @@ def fuzzy_modelos(df, valid_models_dict, threshold=30):
     )
     return df
 
-def inferir_marca_com_modelo(df, valid_models_dict):
-    df = df.copy()
-
- # Build a mapping of models → their most frequent (mode) brand in the dataset
+def infer_brand_fit(df_train):
     model_to_brand = (
-        df[df["Brand"].notna()]
+        df_train[df_train["Brand"] != "UNKNOWN"]
         .groupby("model")["Brand"]
-        .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else None)
+        .agg(lambda x: x.mode().iloc[0] if not x.mode().empty else "UNKNOWN")
         .to_dict()
     )
+    return model_to_brand
 
+
+def infer_brand_apply(df, model_to_brand):
+    df = df.copy()
     df["Brand"] = df.apply(
-    lambda row: (
-        row["Brand"]
-        if pd.notna(row["Brand"])
-        else model_to_brand.get(row["model"], None)
-    ),
-    axis=1
+        lambda row: (
+            row["Brand"]
+            if row["Brand"] != "UNKNOWN"
+            else model_to_brand.get(row["model"], "UNKNOWN")
+        ),
+        axis=1
     )
-
     return df
 
 def limpar_anos(df,max_year=2020):
@@ -261,7 +261,7 @@ def clean_df(df, valid_models, cat_cols):
     df=carID_como_index(df)
     df=fuzzy_marcas(df)
     df=fuzzy_modelos(df, valid_models)
-    df=inferir_marca_com_modelo(df, valid_models)
+    #df=inferir_marca_com_modelo(df, valid_models)
     df=limpar_anos(df)
     df=fuzzy_transmissao(df)
     df=impossible_to_nan(df, "mileage")
