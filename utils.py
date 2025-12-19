@@ -9,7 +9,7 @@ from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, StandardScaler
 from sklearn.neural_network import MLPRegressor
 import seaborn as sns
 import scipy.stats as stats
-from scipy.stats import chi2_contingency
+from scipy.stats import chi2_contingency, skew
 import matplotlib.pyplot as plt
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression, RFE
 from scipy.stats import f_oneway
@@ -347,66 +347,138 @@ def plot_nums(X, num_cols):
     df_outlier = pd.DataFrame(outlier_counts) 
     return df_outlier
 
-def outliers_skews_train(X):
+def outliers_skews_train(
+    X,
+    num_cols,
+    *,
+    q_low=0.001,
+    q_high=0.999,
+    upper_only_after_log=False,
+):
+    """
+    1) For each numeric column:
+    compute skewness on raw values → decide log
+
+    2) log-transform first (if decided)
+
+    3) compute MAD robust z-scores on working scale
+
+    4) define clipping bounds using quantiles of the inliers
+
+    5) apply transforms
+
+    6) return transformed data + metadata to replay on test
+    """
     X = X.copy()
-    outlier_info = {}
+    info = {}
 
-    if "mileage" in X.columns:
-        X["mileage"] = np.log1p(X["mileage"])
-        outlier_info["mileage"] = {"log1p_transform": True}
+    for col in num_cols:
+        x_raw = X[col].to_numpy()
 
-    if "tax" in X.columns:
-        pt = PowerTransformer(method="yeo-johnson")
-        X["tax"] = pt.fit_transform(X[["tax"]]).flatten()
-        outlier_info["tax"] = pt
+        col_info = {
+            "log": False,
+            "clip": False,
+            "lower": None,
+            "upper": None,
+            "q_low": float(q_low),
+            "q_high": float(q_high),
+            "mad_z": float(3.5),
+            "skew_raw": None,
+            "upper_only": False,
+        }
 
-    if "mpg" in X.columns:
-        upper = X["mpg"].quantile(0.975)
-        X["mpg"] = X["mpg"].clip(upper=upper)
-        outlier_info["mpg"] = {"upper": upper}
+        #not enough data
+        if len(x_raw) < 20:
+            info[col] = col_info
+            continue
 
-    if "engineSize" in X.columns:
-        lower = X["engineSize"].quantile(0.01)
-        upper = X["engineSize"].quantile(0.99)
-        X["engineSize"] = X["engineSize"].clip(lower=lower, upper=upper)
-        outlier_info["engineSize"] = {"lower": lower, "upper": upper}
-       
-    if "milleage_per_year" in X.columns:
-        X["milleage_per_year"] = np.log1p(X["milleage_per_year"])
-        outlier_info["milleage_per_year"] = {"log1p_transform": True}
+        #log transform if skewness > 1 and non negative values
+        s = float(skew(x_raw))
+        col_info["skew_raw"] = s
+        do_log = (s > 1) and np.all(x_raw >= 0)
+        col_info["log"] = bool(do_log)
+        col_info["upper_only"] = bool(do_log and upper_only_after_log)
 
-    if "power_efficiency" in X.columns:
-        upper = X["power_efficiency"].quantile(0.99)
-        X["power_efficiency"] = X["power_efficiency"].clip(upper=upper)
-        outlier_info["power_efficiency"] = {"upper": upper}
-    return X, outlier_info
+        # scale
+        x_work = np.log1p(x_raw) if do_log else x_raw
 
-def outliers_skews_test(X, outlier_info):
+        # (3) MAD robust z-scores on working scale
+        med = np.median(x_work)
+        mad = np.median(np.abs(x_work - med))
+        #if mad~0 the columns is mostly constant
+        if mad < 1e-12:
+            info[col] = col_info
+            # still apply log if chosen (even if clipping is skipped)
+            if do_log:
+                X[col] = np.log1p(X[col])
+            continue
+
+        scale = 1.4826 * mad
+        rz = (x_work - med) / scale
+        inliers = np.abs(rz) <= 3.5
+
+        # If nothing to clip, still apply log if needed and move on
+        if inliers.all():
+            info[col] = col_info
+            if do_log:
+                X[col] = np.log1p(X[col])
+            continue
+
+        # (4) Quantile bounds computed on INLIERS (still on working scale)
+        x_in = x_work[inliers]
+        upper = float(np.quantile(x_in, q_high))
+        lower = float(np.quantile(x_in, q_low))
+
+        col_info["clip"] = True
+        col_info["upper"] = upper
+        col_info["lower"] = None if col_info["upper_only"] else lower
+
+        # (5) Apply to training data: log -> clip (bounds are on working scale)
+        if do_log:
+            X[col] = np.log1p(X[col])
+
+        if col_info["upper_only"]:
+            X[col] = X[col].clip(upper=upper)
+        else:
+            X[col] = X[col].clip(lower=lower, upper=upper)
+
+        info[col] = col_info
+
+    return X, info
+
+def outliers_skews_test(X, info):
+    """
+    Apply the transformations learned in outliers_skews_train to test/val data.
+
+    For each column:
+      1) Apply log1p if info[col]["log"] is True
+      2) Apply clipping using stored bounds (on the same scale)
+    """
     X = X.copy()
 
+    for col, col_info in info.items():
+        if col not in X.columns:
+            continue
 
-    if "mileage" in outlier_info and "mileage" in X.columns:
-        if outlier_info["mileage"].get("log1p_transform", True):
-            X["mileage"] = np.log1p(X["mileage"])
+        x = X[col].to_numpy()
+        if np.isnan(x).any():
+            raise ValueError(f"NaNs found in '{col}' before log/MAD clipping (test/val).")
 
-    if "tax" in outlier_info and "tax" in X.columns:
-        pt = outlier_info["tax"]
-        X["tax"] = pt.transform(X[["tax"]]).flatten()
+        # 1) Apply log transform if training decided so
+        if col_info.get("log", False):
+            X[col] = np.log1p(X[col])
 
-    if "mpg" in outlier_info and "mpg" in X.columns:
-        X["mpg"] = X["mpg"].clip(upper=outlier_info["mpg"]["upper"])
-        
-    if "engineSize" in outlier_info and "engineSize" in X.columns:
-        X["engineSize"] = X["engineSize"].clip(
-            lower=outlier_info["engineSize"]["lower"],
-            upper=outlier_info["engineSize"]["upper"])
+        # 2) Apply clipping if training decided so
+        if col_info.get("clip", False):
+            lower = col_info.get("lower", None)
+            upper = col_info.get("upper", None)
 
-    if "milleage_per_year" in outlier_info and "milleage_per_year" in X.columns:
-        if outlier_info["milleage_per_year"].get("log1p_transform", True):
-            X["milleage_per_year"] = np.log1p(X["milleage_per_year"])
-            
-    if "power_efficiency" in outlier_info and "power_efficiency" in X.columns:
-        X["power_efficiency"] = X["power_efficiency"].clip(upper=outlier_info["power_efficiency"]["upper"])
+            if lower is None and upper is not None:
+                X[col] = X[col].clip(upper=upper)
+            elif lower is not None and upper is not None:
+                X[col] = X[col].clip(lower=lower, upper=upper)
+            elif lower is not None:
+                X[col] = X[col].clip(lower=lower)
 
     return X
 
