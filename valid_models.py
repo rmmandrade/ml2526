@@ -71,3 +71,4 @@ valid_models = {
         "I800", "IONIQ", "VELOSTER", "TERRACAN"
     ]
 }
+
