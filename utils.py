@@ -265,25 +265,6 @@ def drop_paint(df):
     df.drop(columns=["paintQuality%"], errors="ignore")
     return df
 
-def price_transform(df):
-    """
-    Deterministic, leakage-free target transform.
-    Applies log1p to price.
-
-    This defines the modeling target and MUST be applied
-    before CV and kept fixed across folds.
-    """
-    if "price" not in df.columns:
-        return df
-    
-    df = df.copy()
-
-    if (df["price"] < 0).any():
-        raise ValueError("price contains negative values; log1p is invalid.")
-
-    df["price"] = np.log1p(df["price"])
-
-    return df
 
 def clean_df(df, valid_models, cat_cols):
     df=df.copy()
@@ -305,7 +286,6 @@ def clean_df(df, valid_models, cat_cols):
     df=round_owners_int(df)
     df=remove_hasdmg(df)
     df=fill_cats_UNKNOWN(df,cat_cols)
-    df=price_transform(df)
     return df
 
 def separar_y(df):
