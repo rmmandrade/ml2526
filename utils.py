@@ -112,6 +112,11 @@ def fuzzy_modelos(df, valid_models_dict, threshold=30):
     return df
 
 def infer_brand_fit(df_train):
+
+    required = {"Brand", "model"}
+    if not required.issubset(df_train.columns):
+        return {}
+    
     model_to_brand = (
         df_train[df_train["Brand"] != "UNKNOWN"]
         .groupby("model")["Brand"]
@@ -122,6 +127,10 @@ def infer_brand_fit(df_train):
 
 
 def infer_brand_apply(df, model_to_brand):
+
+    if not model_to_brand:
+        return df
+    
     df = df.copy()
     df["Brand"] = df.apply(
         lambda row: (
@@ -255,6 +264,7 @@ def power_efficiency(df):
 def drop_paint(df):
     df.drop(columns=["paintQuality%"], errors="ignore")
     return df
+
 
 def clean_df(df, valid_models, cat_cols):
     df=df.copy()
@@ -871,197 +881,3 @@ def random_search_cv(
         "best_result": best_result,
         "best_params": best_params
     }
-
-def spearman_decision(X_train_num_scaled,y_train):
-    corr = X_train_num_scaled.assign(price=y_train).corr(method="spearman")["price"]
-    corr = corr.drop("price")
-    threshold = np.percentile(corr.abs(), 30)
-    return pd.DataFrame({
-        "value": corr,
-        "decision": corr.abs() >= threshold
-    })
-
-def mi_scores_decision_rank(
-    X_train_num_scaled,
-    y_train,
-    top_k=6,
-    random_state=0
-):
-    """
-    Mutual Information decision using rank-based thresholding.
-    
-    Parameters
-    ----------
-    top_k : int
-        Number of top-ranked features to keep.
-    """
-
-    mi_scores = mutual_info_regression(
-        X_train_num_scaled,
-        y_train,
-        random_state=random_state
-    )
-
-    mi = pd.Series(mi_scores, index=X_train_num_scaled.columns)
-
-    ranks = mi.rank(ascending=False, method="average")
-
-    decision = ranks <= top_k
-
-    return pd.DataFrame({
-        "value": mi,
-        "decision": decision
-    })
-
-def anova_eta_squared_decision(X_cat, y, top_k=3, min_group_size=2):
-    """
-    Compute eta-squared (η²) for each categorical feature using one-way ANOVA,
-    then keep the top_k features by η².
-
-    Returns a DataFrame with the same shape as your other decision functions:
-        value  decision
-    """
-    eta_values = {}
-
-    for col in X_cat.columns:
-        df = pd.DataFrame({"X": X_cat[col], "y": y}).dropna()
-
-        groups = []
-        for level, sub in df.groupby("X"):
-            vals = sub["y"].values
-            if len(vals) >= min_group_size:
-                groups.append(vals)
-
-        if len(groups) < 2:
-            eta_values[col] = 0.0
-            continue
-
-        f_stat, _ = f_oneway(*groups)
-        k = len(groups)
-        n = len(df)
-
-        # η² from F-statistic
-        eta_sq = (f_stat * (k - 1)) / (f_stat * (k - 1) + (n - k))
-        eta_values[col] = float(eta_sq)
-
-    eta = pd.Series(eta_values).sort_values(ascending=False)
-
-    # Decide: keep top_k (handles if top_k > number of features)
-    top_k = min(top_k, len(eta))
-    keep_cols = set(eta.index[:top_k])
-
-    return pd.DataFrame({
-        "value": eta,  # sorted best -> worst
-        "decision": [c in keep_cols for c in eta.index]
-    }, index=eta.index)
-
-def kruskal_eta_squared_decision(X_cat, y, top_k=3, min_group_size=2):
-    """
-    Compute a Kruskal–Wallis based eta-squared-like effect size for each
-    categorical feature, then keep the top_k features by that score.
-
-    Output matches your other decision funcs:
-        value  decision
-    """
-    eta_vals = {}
-
-    for col in X_cat.columns:
-        df = pd.DataFrame({"X": X_cat[col], "y": y}).dropna()
-
-        groups = []
-        for level, sub in df.groupby("X"):
-            vals = sub["y"].values
-            if len(vals) >= min_group_size:
-                groups.append(vals)
-
-        if len(groups) < 2:
-            eta_vals[col] = 0.0
-            continue
-
-        h_stat, _ = kruskal(*groups)
-        n = len(df)
-        k = len(groups)
-
-        # eta²-like effect size from H statistic (clipped at 0)
-        eta_sq = max(0.0, float((h_stat - k + 1) / (n - k)))
-        eta_vals[col] = eta_sq
-
-    eta = pd.Series(eta_vals).sort_values(ascending=False)
-
-    top_k = min(top_k, len(eta))
-    keep_cols = set(eta.index[:top_k])
-
-    return pd.DataFrame({
-        "value": eta,  # sorted best -> worst
-        "decision": [c in keep_cols for c in eta.index]
-    }, index=eta.index)
-
-def mi_categorical_decision(X_cat, y, top_k=3, random_state=None):
-    """
-    Compute MI(feature, y) for each categorical feature (treated as discrete),
-    then keep the top_k features.
-
-    Returns:
-        value  decision
-    """
-    if random_state is None:
-        random_state = 0
-
-    mi_vals = {}
-    for col in X_cat.columns:
-        x = X_cat[col].astype("category").cat.codes.to_numpy().reshape(-1, 1)
-        mi_vals[col] = mutual_info_regression(
-            x,
-            y,
-            discrete_features=True,
-            random_state=random_state
-        )[0]
-
-    mi = pd.Series(mi_vals).sort_values(ascending=False)
-
-    top_k = min(top_k, len(mi))
-    keep_cols = set(mi.index[:top_k])
-
-    return pd.DataFrame({
-        "value": mi,  # sorted best -> worst
-        "decision": [c in keep_cols for c in mi.index]
-    }, index=mi.index)
-
-def decide_numerical(
-    spearman_decision,
-    mi_decision,
-):
-    votes = sum([spearman_decision, mi_decision])
-
-    if votes == 0:
-        final = "NOISE"
-    elif votes == 2:
-        final = "MAJOR"
-    elif votes == 1:
-        final = "KEEP"
-    else:
-        final = "HARD TOSS"
-
-    return {
-        "spearman": spearman_decision,
-        "mi": mi_decision,
-        "votes": votes,
-        "final_decision": final
-    }
-
-def decide_categorical(
-    anova_decision: bool,
-    kruskal_decision: bool,
-    mi_decision: bool
-):
-    votes=sum([anova_decision, kruskal_decision, mi_decision])
-    if votes == 3:
-        return "MAJOR"
-
-    if votes == 2:
-        return "KEEP"
-
-    if votes == 1:
-        return "TOSS"
-
-    return "NOISE"

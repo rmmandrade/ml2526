@@ -1,3 +1,4 @@
 .venv
 *.joblib
 /new _18_12_2025.ipynb
+/saved_models
